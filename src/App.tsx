@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   StatusBar,
@@ -9,28 +9,42 @@ import {
 import Animated from 'react-native-reanimated';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
-const { Value, event, cond, eq, set, add } = Animated;
+const {
+  Value,
+  event,
+  cond,
+  eq,
+  set,
+  add,
+  and,
+  lessThan,
+  stopClock,
+  Clock,
+  divide,
+  diff,
+  multiply,
+  startClock
+} = Animated;
 
 export class App extends React.Component {
-  private translateX = new Value(0);
-  private translateY = new Value(0);
-
-  private animationState = new Value(State.UNDETERMINED);
+  private gestureX = new Value(0);
+  private gestureY = new Value(0);
+  private gestureState = new Value(State.UNDETERMINED);
 
   private onGestureEvent = event([
     {
       nativeEvent: {
-        translationX: this.translateX,
-        translationY: this.translateY,
-        state: this.animationState
+        translationX: this.gestureX,
+        translationY: this.gestureY,
+        state: this.gestureState
       }
     }
   ]);
 
-  render() {
-    const translateX = interaction(this.translateX, this.animationState);
-    const translateY = interaction(this.translateY, this.animationState);
+  private translateX = interaction(this.gestureX, this.gestureState);
+  private translateY = interaction(this.gestureY, this.gestureState);
 
+  render() {
     return (
       <SafeAreaView style={styles.container}>
         <PanGestureHandler
@@ -41,7 +55,9 @@ export class App extends React.Component {
             style={[
               styles.box,
               {
-                transform: [{ translateX, translateY }]
+                transform: [
+                  { translateX: this.translateX, translateY: this.translateY }
+                ]
               }
             ]}
           />
@@ -50,22 +66,57 @@ export class App extends React.Component {
     );
   }
 }
+type ANumber = Animated.Value<number>;
+const POSITION_THRESHOLD = 1;
 
-function interaction(
-  translate: Animated.Value<number>,
-  state: Animated.Value<number>
+function stopWhenNeeded(
+  dt: Animated.Node<number>,
+  position: ANumber,
+  velocity: ANumber,
+  clock: Animated.Clock
 ): any {
+  return cond(
+    and(
+      lessThan(position, POSITION_THRESHOLD),
+      lessThan(-POSITION_THRESHOLD, position)
+    ),
+    [stopClock(clock), set(velocity, 0), set(position, 0)]
+  );
+}
+
+const VELOCITY = 100;
+function force(
+  dt: Animated.Node<number>,
+  position: ANumber,
+  velocity: ANumber
+) {
+  return set(velocity, cond(lessThan(position, 0), VELOCITY, -VELOCITY));
+}
+
+function interaction(translate: ANumber, state: ANumber): any {
   const start = new Value(0);
   const dragging = new Value(0);
   const position = new Value(0);
+  const velocity = new Value(0);
+
+  const clock = new Clock();
+  const dt = divide(diff(clock), 1000);
 
   return cond(
     eq(state, State.ACTIVE),
     [
       cond(eq(dragging, 0), [set(dragging, 1), set(start, position)]),
+      stopClock(clock),
+      dt,
       set(position, add(start, translate))
     ],
-    [set(dragging, 0), position]
+    [
+      set(dragging, 0),
+      startClock(clock),
+      force(dt, position, velocity),
+      stopWhenNeeded(dt, position, velocity, clock),
+      set(position, add(position, multiply(velocity, dt)))
+    ]
   );
 }
 
@@ -76,6 +127,7 @@ function interaction() {
  let dragging = 0;
  let start = 0;
  let position = 0;
+ //... Секундомер
 
  return (gestureTranslation, gestureState) => {
    if (gestureState === State.ACTIVE) {
@@ -83,9 +135,22 @@ function interaction() {
        dragging = 1;
        start = position;
      }
+     
+     clock = 0
+     //... (dt) Посчитай сколько секунд прошло с предыдущей рисовки
+     
+     if(position < POSITION_THRESHOLD && position > -POSITION_THRESHOLD){
+        clock = 0
+        velocity = 0
+        position = 0
+     }
+
      position = start + gestureTranslation;
    } else {
      dragging = 0;
+     //... Запусти секундомер
+     velocity = position < 0 ? VELOCITY : -VELOCITY;
+     position = position + velocity * dt
    }
    return position;
  };
