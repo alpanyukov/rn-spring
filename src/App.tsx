@@ -16,14 +16,17 @@ const {
   eq,
   set,
   add,
-  and,
   lessThan,
   stopClock,
   Clock,
   divide,
   diff,
   multiply,
-  startClock
+  startClock,
+  sub,
+  abs,
+  greaterThan,
+  block
 } = Animated;
 
 export class App extends React.Component {
@@ -67,30 +70,61 @@ export class App extends React.Component {
   }
 }
 type ANumber = Animated.Value<number>;
-const POSITION_THRESHOLD = 1;
+const EPS = 1e-3;
+const EMPTY_FRAMES_THRESHOLDS = 5;
 
 function stopWhenNeeded(
   dt: Animated.Node<number>,
   position: ANumber,
   velocity: ANumber,
   clock: Animated.Clock
-): any {
+) {
+  const ds = diff(position);
+  const noMovementFrames = new Value(0);
+
   return cond(
-    and(
-      lessThan(position, POSITION_THRESHOLD),
-      lessThan(-POSITION_THRESHOLD, position)
-    ),
-    [stopClock(clock), set(velocity, 0), set(position, 0)]
+    lessThan(abs(ds), EPS),
+    [
+      set(noMovementFrames, add(noMovementFrames, 1)),
+      cond(
+        greaterThan(noMovementFrames, EMPTY_FRAMES_THRESHOLDS),
+        stopClock(clock)
+      )
+    ],
+    set(noMovementFrames, 0)
   );
 }
 
-const VELOCITY = 100;
-function force(
+// const VELOCITY = 100;
+// function force(
+//   dt: Animated.Node<number>,
+//   position: ANumber,
+//   velocity: ANumber
+// ) {
+//   return set(velocity, cond(lessThan(position, 0), VELOCITY, -VELOCITY));
+// }
+
+function damping(
+  dt: Animated.Node<number>,
+  velocity: ANumber,
+  mass = 1,
+  damping = 12
+) {
+  const acc = divide(multiply(-1, damping, velocity), mass);
+  return set(velocity, add(velocity, multiply(dt, acc)));
+}
+
+function spring(
   dt: Animated.Node<number>,
   position: ANumber,
-  velocity: ANumber
+  velocity: ANumber,
+  anchor: ANumber,
+  mass = 1,
+  tension = 300
 ) {
-  return set(velocity, cond(lessThan(position, 0), VELOCITY, -VELOCITY));
+  const distance = sub(position, anchor);
+  const acc = divide(multiply(-1, tension, distance), mass);
+  return set(velocity, add(velocity, multiply(dt, acc)));
 }
 
 function interaction(translate: ANumber, state: ANumber): any {
@@ -98,11 +132,12 @@ function interaction(translate: ANumber, state: ANumber): any {
   const dragging = new Value(0);
   const position = new Value(0);
   const velocity = new Value(0);
+  const mass = 2;
 
   const clock = new Clock();
   const dt = divide(diff(clock), 1000);
 
-  return cond(
+  const step = cond(
     eq(state, State.ACTIVE),
     [
       cond(eq(dragging, 0), [set(dragging, 1), set(start, position)]),
@@ -113,11 +148,15 @@ function interaction(translate: ANumber, state: ANumber): any {
     [
       set(dragging, 0),
       startClock(clock),
-      force(dt, position, velocity),
+      stopWhenNeeded(dt, position, velocity, clock),
+      spring(dt, position, velocity, start, mass),
+      damping(dt, velocity, mass, 20),
       stopWhenNeeded(dt, position, velocity, clock),
       set(position, add(position, multiply(velocity, dt)))
     ]
   );
+
+  return block([step, position]);
 }
 
 /**
