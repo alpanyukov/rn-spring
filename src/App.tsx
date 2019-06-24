@@ -8,10 +8,10 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { useInteraction } from './animations/interaction';
+import { useSpring } from './animations/spring';
 
 export const App = () => {
-  const { translateX, translateY, onGestureEvent } = useInteraction();
+  const { translateX, translateY, onGestureEvent } = useSpring();
 
   return (
     <SafeAreaView style={styles.container}>

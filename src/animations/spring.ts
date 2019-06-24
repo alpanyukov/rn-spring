@@ -22,7 +22,7 @@ const {
   block
 } = Animated;
 
-export function useInteraction(mass = 1, tension = 300, damp = 18) {
+export function useSpring(mass = 1, tension = 300, damp = 18) {
   const gestureX = useRef(new Value(0));
   const gestureY = useRef(new Value(0));
   const gestureState = useRef(new Value(State.UNDETERMINED));
