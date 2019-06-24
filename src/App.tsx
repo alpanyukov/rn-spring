@@ -130,6 +130,7 @@ function spring(
 function interaction(translate: ANumber, state: ANumber): any {
   const start = new Value(0);
   const dragging = new Value(0);
+  const anchor = new Value(0);
   const position = new Value(0);
   const velocity = new Value(0);
   const mass = 2;
@@ -148,7 +149,6 @@ function interaction(translate: ANumber, state: ANumber): any {
     [
       set(dragging, 0),
       startClock(clock),
-      stopWhenNeeded(dt, position, velocity, clock),
       spring(dt, position, velocity, start, mass),
       damping(dt, velocity, mass, 20),
       stopWhenNeeded(dt, position, velocity, clock),
