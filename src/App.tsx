@@ -133,7 +133,8 @@ function interaction(translate: ANumber, state: ANumber): any {
   const anchor = new Value(0);
   const position = new Value(0);
   const velocity = new Value(0);
-  const mass = 2;
+  const mass = 1;
+  const damp = 16;
 
   const clock = new Clock();
   const dt = divide(diff(clock), 1000);
@@ -142,21 +143,24 @@ function interaction(translate: ANumber, state: ANumber): any {
     eq(state, State.ACTIVE),
     [
       cond(eq(dragging, 0), [set(dragging, 1), set(start, position)]),
-      stopClock(clock),
-      dt,
-      set(position, add(start, translate))
+      set(anchor, add(start, translate)),
+      spring(dt, position, velocity, anchor, mass),
+      damping(dt, velocity, mass, damp)
     ],
     [
       set(dragging, 0),
       startClock(clock),
       spring(dt, position, velocity, start, mass),
-      damping(dt, velocity, mass, 20),
-      stopWhenNeeded(dt, position, velocity, clock),
-      set(position, add(position, multiply(velocity, dt)))
+      damping(dt, velocity, mass, damp)
     ]
   );
 
-  return block([step, position]);
+  return block([
+    step,
+    stopWhenNeeded(dt, position, velocity, clock),
+    set(position, add(position, multiply(velocity, dt))),
+    position
+  ]);
 }
 
 /**
